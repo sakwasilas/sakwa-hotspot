@@ -23,11 +23,30 @@
             width: 100%;
             text-align: center;
             box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            animation: fadeIn 0.5s ease;
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
         
         .mpesa-logo {
             font-size: 4rem;
             margin-bottom: 20px;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
         }
         
         h2 {
@@ -49,6 +68,7 @@
             margin: 20px 0;
             font-size: 1.2rem;
             font-weight: bold;
+            word-break: break-word;
         }
         
         .spinner {
@@ -61,9 +81,16 @@
             margin: 20px auto;
         }
         
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
         .status {
             color: #666;
             margin: 20px 0;
+            font-size: 1rem;
+            line-height: 1.5;
         }
         
         .instruction {
@@ -75,11 +102,6 @@
             font-size: 0.9rem;
         }
         
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
         .success {
             color: #4caf50;
             font-size: 3rem;
@@ -87,11 +109,49 @@
         
         .error {
             color: #f44336;
+            font-size: 3rem;
+        }
+        
+        .btn-retry {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            font-size: 1rem;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: transform 0.2s;
+        }
+        
+        .btn-retry:hover {
+            transform: scale(1.05);
+        }
+        
+        .checkout-id {
+            font-size: 0.8rem;
+            color: #999;
+            margin-top: 15px;
+            word-break: break-all;
+        }
+        
+        .simulation-badge {
+            background: #ff9800;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            display: inline-block;
+            margin-bottom: 15px;
         }
     </style>
 </head>
 <body>
     <div class="payment-container">
+        {% if simulation %}
+        <div class="simulation-badge">⚠️ SIMULATION MODE</div>
+        {% endif %}
+        
         <div class="mpesa-logo" id="mpesaLogo">💳</div>
         <h2>M-Pesa Payment</h2>
         <div class="amount">KSh {{ amount }}</div>
@@ -99,21 +159,43 @@
         
         <div id="paymentStatus">
             <div class="spinner"></div>
-            <div class="status">Waiting for payment confirmation...</div>
+            <div class="status">
+                {% if simulation %}
+                Simulating payment...
+                {% else %}
+                Waiting for payment confirmation...
+                {% endif %}
+            </div>
         </div>
         
         <div class="instruction">
             <strong>📝 Instructions:</strong><br>
+            {% if simulation %}
+            1. This is a simulated payment for testing<br>
+            2. No money will be deducted<br>
+            3. Click OK when prompted<br>
+            {% else %}
             1. Check your phone for M-Pesa prompt<br>
             2. Enter your M-Pesa PIN to complete payment<br>
             3. Wait for confirmation<br>
+            {% endif %}
             <small style="color: #999;">You will be redirected automatically after payment</small>
         </div>
+        
+        {% if checkout_id %}
+        <div class="checkout-id">
+            Reference: {{ checkout_id[:20] }}...
+        </div>
+        {% endif %}
     </div>
     
     <script>
+        let checkInterval = null;
         let checkCount = 0;
-        let interval = setInterval(async () => {
+        const maxChecks = 30; // 30 * 3 seconds = 90 seconds max wait
+        const simulationMode = {{ simulation|tojson }};
+        
+        async function checkPaymentStatus() {
             checkCount++;
             
             try {
@@ -121,10 +203,11 @@
                 const data = await response.json();
                 
                 if (data.status === 'completed') {
-                    clearInterval(interval);
+                    // Payment successful
+                    clearInterval(checkInterval);
                     document.getElementById('paymentStatus').innerHTML = `
                         <div class="success">✅</div>
-                        <div class="status" style="color: #4caf50;">Payment successful!</div>
+                        <div class="status" style="color: #4caf50; font-weight: bold;">Payment successful!</div>
                         <div style="margin-top: 20px;">Redirecting to success page...</div>
                     `;
                     document.getElementById('mpesaLogo').innerHTML = '✅';
@@ -132,18 +215,98 @@
                     setTimeout(() => {
                         window.location.href = '/success';
                     }, 2000);
-                } else if (data.status === 'failed' || checkCount > 30) {
-                    clearInterval(interval);
+                    
+                } else if (data.status === 'failed') {
+                    // Payment failed
+                    clearInterval(checkInterval);
                     document.getElementById('paymentStatus').innerHTML = `
                         <div class="error">❌</div>
-                        <div class="status" style="color: #f44336;">Payment failed or timeout</div>
-                        <button onclick="window.location.href='/hotspot-login'" style="margin-top: 20px; padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer;">Try Again</button>
+                        <div class="status" style="color: #f44336; font-weight: bold;">Payment failed</div>
+                        <button class="btn-retry" onclick="window.location.href='/hotspot-login'">Try Again</button>
                     `;
+                    document.getElementById('mpesaLogo').innerHTML = '❌';
+                    
+                } else if (checkCount >= maxChecks) {
+                    // Timeout
+                    clearInterval(checkInterval);
+                    document.getElementById('paymentStatus').innerHTML = `
+                        <div class="error">⏰</div>
+                        <div class="status" style="color: #f44336; font-weight: bold;">Payment timeout</div>
+                        <button class="btn-retry" onclick="window.location.href='/hotspot-login'">Try Again</button>
+                    `;
+                    document.getElementById('mpesaLogo').innerHTML = '⏰';
                 }
+                
             } catch (error) {
                 console.error('Error checking status:', error);
+                if (checkCount >= maxChecks) {
+                    clearInterval(checkInterval);
+                    document.getElementById('paymentStatus').innerHTML = `
+                        <div class="error">⚠️</div>
+                        <div class="status" style="color: #f44336;">Connection error</div>
+                        <button class="btn-retry" onclick="window.location.href='/hotspot-login'">Try Again</button>
+                    `;
+                }
             }
-        }, 3000);
+        }
+        
+        // Start checking payment status
+        function startPaymentCheck() {
+            checkInterval = setInterval(checkPaymentStatus, 3000);
+            // Also check immediately
+            setTimeout(checkPaymentStatus, 1000);
+        }
+        
+        // If in simulation mode, trigger simulation after 2 seconds
+        if (simulationMode) {
+            setTimeout(async () => {
+                try {
+                    const response = await fetch('/simulate-payment', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'}
+                    });
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        console.log('✅ Simulation payment successful');
+                        // Update status to show simulation was triggered
+                        document.getElementById('paymentStatus').innerHTML = `
+                            <div class="spinner"></div>
+                            <div class="status">Processing simulation...</div>
+                        `;
+                    } else {
+                        console.error('Simulation failed:', data.error);
+                        document.getElementById('paymentStatus').innerHTML = `
+                            <div class="error">⚠️</div>
+                            <div class="status" style="color: #f44336;">Simulation failed: ${data.error}</div>
+                            <button class="btn-retry" onclick="window.location.href='/hotspot-login'">Try Again</button>
+                        `;
+                    }
+                } catch (error) {
+                    console.error('Simulation error:', error);
+                }
+            }, 2000);
+        }
+        
+        // Start checking status
+        startPaymentCheck();
+        
+        // Add fallback: if user closes the page, show warning
+        window.addEventListener('beforeunload', function(e) {
+            if (checkInterval) {
+                // User is trying to leave while payment is processing
+                e.preventDefault();
+                e.returnValue = 'Payment is still processing. Are you sure you want to leave?';
+                return 'Payment is still processing. Are you sure you want to leave?';
+            }
+        });
+        
+        // Log start
+        console.log('Payment page loaded - Mode:', simulationMode ? 'Simulation' : 'Real M-Pesa');
+        if (!simulationMode) {
+            console.log('Waiting for M-Pesa prompt on phone:', '{{ phone }}');
+            console.log('Checkout ID:', '{{ checkout_id }}');
+        }
     </script>
 </body>
 </html>

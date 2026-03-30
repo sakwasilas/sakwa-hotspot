@@ -247,8 +247,8 @@ class MikroTikHotspotManager:
 
 # Create a global instance
 hotspot_manager = MikroTikHotspotManager(
-    router_ip="192.168.1.1",  # Change to your router's IP
-    router_user="admin",       # Change to your router's username
-    router_pass="",            # Change to your router's password
-    simulation_mode=True       # Set to False when you have actual MikroTik
+    router_ip="192.168.1.1",  
+    router_user="admin",       
+    router_pass="silas",            
+    simulation_mode=False      
 )

@@ -8,6 +8,8 @@ import time
 from connections import SessionLocal
 from models import User, HotspotSession, PaymentTransaction
 from hotspot_manager import hotspot_manager
+from mpesa_integration import MpesaIntegration
+from mpesa_config import MPESA_CONFIG  # Import from config file
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-change-this-in-production'  # Change this!
@@ -15,6 +17,29 @@ app.secret_key = 'your-secret-key-change-this-in-production'  # Change this!
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Validate M-Pesa configuration
+if not MPESA_CONFIG.get('consumer_key') or not MPESA_CONFIG.get('consumer_secret'):
+    logger.warning("⚠️ M-Pesa credentials not configured. Payments will use simulation mode.")
+    # Set simulation mode flag
+    USE_MPESA_SIMULATION = True
+else:
+    USE_MPESA_SIMULATION = False
+    logger.info("✅ M-Pesa configured. Using real payments.")
+
+# Initialize M-Pesa (only if credentials are provided)
+if not USE_MPESA_SIMULATION:
+    mpesa = MpesaIntegration(
+        consumer_key=MPESA_CONFIG['consumer_key'],
+        consumer_secret=MPESA_CONFIG['consumer_secret'],
+        business_shortcode=MPESA_CONFIG['business_shortcode'],
+        passkey=MPESA_CONFIG['passkey'],
+        environment=MPESA_CONFIG['environment'],
+        callback_url=MPESA_CONFIG['callback_url']
+    )
+else:
+    mpesa = None
+    logger.info("Using simulated payment mode")
 
 # Hotspot packages
 PACKAGES = {
@@ -44,7 +69,7 @@ def index():
             active_session = db.query(HotspotSession).filter(
                 HotspotSession.mac_address == mac_address,
                 HotspotSession.is_active == True,
-                HotspotSession.end_time > datetime.utcnow()  # Use naive datetime
+                HotspotSession.end_time > datetime.utcnow()
             ).first()
             
             if active_session:
@@ -59,7 +84,8 @@ def index():
     return render_template('index.html', 
                          packages=PACKAGES,
                          mac=mac_address,
-                         ip=ip_address)
+                         ip=ip_address,
+                         simulation_mode=USE_MPESA_SIMULATION)
 
 @app.route('/hotspot-login')
 def hotspot_login():
@@ -77,7 +103,7 @@ def hotspot_login():
 
 @app.route('/select-package', methods=['POST'])
 def select_package():
-    """Process package selection and initiate payment"""
+    """Process package selection and initiate M-Pesa payment"""
     package_id = request.form.get('package')
     phone_number = request.form.get('phone_number')
     mac_address = request.form.get('mac_address', flask_session.get('device_mac', ''))
@@ -118,22 +144,58 @@ def select_package():
         
         logger.info(f"Created pending transaction: {transaction_id} for {phone_number}")
         
-        return render_template('payment.html', 
-                             phone=phone_number,
-                             amount=package['price'],
-                             package=package['name'],
-                             transaction_id=transaction_id)
+        # If using simulation mode or no M-Pesa configured
+        if USE_MPESA_SIMULATION or not mpesa:
+            logger.info("Using simulated payment mode")
+            return render_template('payment.html', 
+                                 phone=phone_number,
+                                 amount=package['price'],
+                                 package=package['name'],
+                                 transaction_id=transaction_id,
+                                 simulation=True)
+        
+        # Initiate M-Pesa STK Push
+        result = mpesa.stk_push(
+            phone_number=phone_number,
+            amount=package['price'],
+            package=package_id,
+            transaction_id=transaction_id,
+            account_reference=f"WiFi{package_id[:5]}"
+        )
+        
+        if result and result.get('ResponseCode') == '0':
+            # STK Push sent successfully
+            checkout_id = result.get('CheckoutRequestID')
+            logger.info(f"✅ STK Push sent. Checkout ID: {checkout_id}")
+            
+            return render_template('payment.html', 
+                                 phone=phone_number,
+                                 amount=package['price'],
+                                 package=package['name'],
+                                 transaction_id=transaction_id,
+                                 checkout_id=checkout_id,
+                                 simulation=False)
+        else:
+            error_msg = result.get('errorMessage', 'Failed to initiate payment') if result else 'No response from M-Pesa'
+            logger.error(f"STK Push failed: {error_msg}")
+            return render_template('payment_error.html', 
+                                 error=error_msg,
+                                 phone=phone_number,
+                                 amount=package['price'])
         
     except Exception as e:
         logger.error(f"Error creating transaction: {e}")
         db.rollback()
-        return jsonify({'error': 'Failed to process payment'}), 500
+        return jsonify({'error': str(e)}), 500
     finally:
         db.close()
 
 @app.route('/simulate-payment', methods=['POST'])
 def simulate_payment():
-    """Simulate successful payment and activate internet (testing without M-Pesa)"""
+    """Simulate successful payment (fallback when M-Pesa is not configured)"""
+    if not USE_MPESA_SIMULATION:
+        return jsonify({'error': 'Not in simulation mode'}), 400
+    
     transaction_id = flask_session.get('transaction_id')
     
     if not transaction_id:
@@ -175,7 +237,7 @@ def simulate_payment():
         db.add(hotspot_session)
         db.commit()
         
-        # CRITICAL: Add MAC to MikroTik hotspot whitelist
+        # Add MAC to MikroTik whitelist
         if transaction.mac_address:
             mac_added = hotspot_manager.add_mac_to_whitelist(
                 mac_address=transaction.mac_address,
@@ -192,20 +254,12 @@ def simulate_payment():
                     'end_time': end_time.strftime('%Y-%m-%d %H:%M:%S'),
                     'duration_hours': package['duration']
                 })
-            else:
-                logger.error(f"❌ Failed to add MAC to hotspot: {hotspot_session.mac_address}")
-                return jsonify({
-                    'success': False,
-                    'error': 'Failed to activate internet. Please contact support.'
-                }), 500
-        else:
-            logger.warning("No MAC address provided, skipping whitelist addition")
-            return jsonify({
-                'success': True,
-                'message': 'Payment successful! Please reconnect to WiFi.',
-                'end_time': end_time.strftime('%Y-%m-%d %H:%M:%S'),
-                'duration_hours': package['duration']
-            })
+        
+        return jsonify({
+            'success': True,
+            'message': 'Payment successful!',
+            'end_time': end_time.strftime('%Y-%m-%d %H:%M:%S')
+        })
         
     except Exception as e:
         logger.error(f"Error activating session: {e}")
@@ -213,48 +267,6 @@ def simulate_payment():
         return jsonify({'error': str(e)}), 500
     finally:
         db.close()
-
-@app.route('/check-status')
-def check_status():
-    """Check if current device has active internet"""
-    mac_address = request.args.get('mac', flask_session.get('device_mac', ''))
-    
-    if not mac_address:
-        return jsonify({'active': False, 'error': 'No MAC address provided'})
-    
-    db = SessionLocal()
-    try:
-        active_session = db.query(HotspotSession).filter(
-            HotspotSession.mac_address == mac_address,
-            HotspotSession.is_active == True,
-            HotspotSession.end_time > datetime.utcnow()
-        ).first()
-        
-        if active_session:
-            remaining = active_session.end_time - datetime.utcnow()
-            remaining_seconds = remaining.total_seconds()
-            
-            return jsonify({
-                'active': True,
-                'remaining_seconds': remaining_seconds,
-                'remaining_hours': round(remaining_seconds / 3600, 1),
-                'package': active_session.package,
-                'start_time': active_session.start_time.strftime('%Y-%m-%d %H:%M:%S'),
-                'end_time': active_session.end_time.strftime('%Y-%m-%d %H:%M:%S')
-            })
-        else:
-            return jsonify({'active': False})
-            
-    except Exception as e:
-        logger.error(f"Error checking status: {e}")
-        return jsonify({'active': False, 'error': str(e)})
-    finally:
-        db.close()
-
-@app.route('/success')
-def success():
-    """Success page after payment"""
-    return render_template('success.html')
 
 @app.route('/check-payment-status')
 def check_payment_status():
@@ -271,6 +283,21 @@ def check_payment_status():
         ).first()
         
         if transaction:
+            # If still pending and we have a checkout ID and not in simulation mode
+            if (transaction.status == 'pending' and 
+                transaction.mpesa_receipt and 
+                not USE_MPESA_SIMULATION and 
+                mpesa):
+                result = mpesa.check_transaction_status(transaction.mpesa_receipt)
+                if result and result.get('ResultCode') == '0':
+                    # Transaction completed
+                    transaction.status = 'completed'
+                    transaction.completed_at = datetime.utcnow()
+                    db.commit()
+                    
+                    # Activate hotspot session
+                    mpesa.activate_hotspot_session(transaction)
+            
             return jsonify({
                 'status': transaction.status,
                 'mpesa_receipt': transaction.mpesa_receipt
@@ -280,30 +307,32 @@ def check_payment_status():
     finally:
         db.close()
 
-@app.route('/logout')
-def logout():
-    """Logout user and deactivate session"""
-    mac_address = request.args.get('mac', flask_session.get('device_mac', ''))
+@app.route('/mpesa-callback', methods=['POST'])
+def mpesa_callback():
+    """Handle M-Pesa callback"""
+    if USE_MPESA_SIMULATION:
+        logger.info("Callback received but in simulation mode")
+        return jsonify({'ResultCode': 0, 'ResultDesc': 'Success'})
     
-    if mac_address:
-        db = SessionLocal()
-        try:
-            session_record = db.query(HotspotSession).filter(
-                HotspotSession.mac_address == mac_address,
-                HotspotSession.is_active == True
-            ).first()
+    try:
+        callback_data = request.json
+        logger.info(f"Received M-Pesa callback")
+        
+        # Process the callback
+        if mpesa:
+            success = mpesa.handle_callback(callback_data)
             
-            if session_record:
-                session_record.is_active = False
-                db.commit()
-                
-                # Remove from MikroTik
-                hotspot_manager.remove_mac_from_whitelist(mac_address)
-                logger.info(f"User logged out: {mac_address}")
-        finally:
-            db.close()
-    
-    return redirect(url_for('index'))
+            if success:
+                return jsonify({'ResultCode': 0, 'ResultDesc': 'Success'})
+        
+        return jsonify({'ResultCode': 1, 'ResultDesc': 'Failed'}), 400
+            
+    except Exception as e:
+        logger.error(f"Error processing callback: {e}")
+        return jsonify({'ResultCode': 1, 'ResultDesc': str(e)}), 500
+
+# Rest of your routes (check-status, success, logout) remain the same...
+# [Keep your existing check-status, success, logout routes here]
 
 # Background thread to check and expire sessions periodically
 def session_expiry_checker():
