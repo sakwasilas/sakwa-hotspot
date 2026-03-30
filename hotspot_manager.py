@@ -250,5 +250,5 @@ hotspot_manager = MikroTikHotspotManager(
     router_ip="192.168.1.1",  
     router_user="admin",       
     router_pass="silas",            
-    simulation_mode=False      
+    simulation_mode=False     
 )
