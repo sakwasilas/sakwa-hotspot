@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to Silas WiFi!</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .success-container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 450px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            animation: slideUp 0.5s ease;
+        }
+        
+        @keyframes slideUp {
+            from {
+                transform: translateY(50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        
+        .success-icon {
+            font-size: 5rem;
+            margin-bottom: 20px;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .message {
+            color: #666;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+        
+        .info-box {
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            text-align: left;
+        }
+        
+        .info-item {
+            margin: 10px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .info-label {
+            font-weight: bold;
+            color: #555;
+        }
+        
+        .info-value {
+            color: #667eea;
+            font-weight: bold;
+        }
+        
+        .browse-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 1rem;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 20px;
+            transition: transform 0.2s;
+        }
+        
+        .browse-btn:hover {
+            transform: scale(1.05);
+        }
+        
+        .timer {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+            margin: 20px 0;
+        }
+        
+        .tips {
+            background: #e8f5e9;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            font-size: 0.9rem;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <div class="success-container">
+        <div class="success-icon">🎉</div>
+        <h1>Welcome to Silas WiFi!</h1>
+        <div class="message">
+            Your payment was successful. You are now connected to high-speed internet.
+        </div>
+        
+        <div class="info-box" id="sessionInfo">
+            <div class="info-item">
+                <span class="info-label">📦 Package:</span>
+                <span class="info-value" id="package">Loading...</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">⏱️ Time Remaining:</span>
+                <span class="info-value" id="timeRemaining">Loading...</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">📅 Expires:</span>
+                <span class="info-value" id="expires">Loading...</span>
+            </div>
+        </div>
+        
+        <div class="timer" id="timerDisplay">--:--:--</div>
+        
+        <button class="browse-btn" onclick="startBrowsing()">🌐 Start Browsing</button>
+        
+        <div class="tips">
+            <strong>💡 Tips:</strong><br>
+            • Your internet will automatically disconnect when time expires<br>
+            • You can purchase another package at any time<br>
+            • For support, contact our help desk
+        </div>
+    </div>
+    
+    <script>
+        let remainingSeconds = 0;
+        let timerInterval = null;
+        
+        async function getSessionStatus() {
+            try {
+                const response = await fetch('/check-status');
+                const data = await response.json();
+                
+                if (data.active) {
+                    remainingSeconds = data.remaining_seconds;
+                    
+                    document.getElementById('package').textContent = data.package;
+                    document.getElementById('expires').textContent = new Date(data.end_time).toLocaleString();
+                    
+                    updateTimerDisplay();
+                    
+                    if (!timerInterval) {
+                        startTimer();
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching status:', error);
+            }
+        }
+        
+        function updateTimerDisplay() {
+            if (remainingSeconds <= 0) {
+                document.getElementById('timerDisplay').textContent = 'Expired';
+                if (timerInterval) {
+                    clearInterval(timerInterval);
+                }
+                return;
+            }
+            
+            const hours = Math.floor(remainingSeconds / 3600);
+            const minutes = Math.floor((remainingSeconds % 3600) / 60);
+            const seconds = Math.floor(remainingSeconds % 60);
+            
+            document.getElementById('timerDisplay').textContent = 
+                `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            
+            document.getElementById('timeRemaining').textContent = 
+                `${hours} hour(s), ${minutes} minute(s)`;
+        }
+        
+        function startTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+            
+            timerInterval = setInterval(() => {
+                if (remainingSeconds > 0) {
+                    remainingSeconds--;
+                    updateTimerDisplay();
+                } else {
+                    clearInterval(timerInterval);
+                    document.getElementById('timerDisplay').textContent = 'Expired';
+                    document.getElementById('timeRemaining').textContent = 'Expired';
+                }
+            }, 1000);
+        }
+        
+        function startBrowsing() {
+            // Redirect to any website or close the window
+            window.location.href = 'http://www.google.com';
+        }
+        
+        // Get initial status
+        getSessionStatus();
+        
+        // Refresh status every 30 seconds
+        setInterval(getSessionStatus, 30000);
+    </script>
+</body>
+</html>

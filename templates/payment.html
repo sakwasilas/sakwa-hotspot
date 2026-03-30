@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Processing Payment - Silas WiFi</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .payment-container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 400px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        
+        .mpesa-logo {
+            font-size: 4rem;
+            margin-bottom: 20px;
+        }
+        
+        h2 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .amount {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+            margin: 20px 0;
+        }
+        
+        .phone {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        
+        .status {
+            color: #666;
+            margin: 20px 0;
+        }
+        
+        .instruction {
+            background: #fff3e0;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            text-align: left;
+            font-size: 0.9rem;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .success {
+            color: #4caf50;
+            font-size: 3rem;
+        }
+        
+        .error {
+            color: #f44336;
+        }
+    </style>
+</head>
+<body>
+    <div class="payment-container">
+        <div class="mpesa-logo" id="mpesaLogo">💳</div>
+        <h2>M-Pesa Payment</h2>
+        <div class="amount">KSh {{ amount }}</div>
+        <div class="phone">📱 {{ phone }}</div>
+        
+        <div id="paymentStatus">
+            <div class="spinner"></div>
+            <div class="status">Waiting for payment confirmation...</div>
+        </div>
+        
+        <div class="instruction">
+            <strong>📝 Instructions:</strong><br>
+            1. Check your phone for M-Pesa prompt<br>
+            2. Enter your M-Pesa PIN to complete payment<br>
+            3. Wait for confirmation<br>
+            <small style="color: #999;">You will be redirected automatically after payment</small>
+        </div>
+    </div>
+    
+    <script>
+        let checkCount = 0;
+        let interval = setInterval(async () => {
+            checkCount++;
+            
+            try {
+                const response = await fetch('/check-payment-status');
+                const data = await response.json();
+                
+                if (data.status === 'completed') {
+                    clearInterval(interval);
+                    document.getElementById('paymentStatus').innerHTML = `
+                        <div class="success">✅</div>
+                        <div class="status" style="color: #4caf50;">Payment successful!</div>
+                        <div style="margin-top: 20px;">Redirecting to success page...</div>
+                    `;
+                    document.getElementById('mpesaLogo').innerHTML = '✅';
+                    
+                    setTimeout(() => {
+                        window.location.href = '/success';
+                    }, 2000);
+                } else if (data.status === 'failed' || checkCount > 30) {
+                    clearInterval(interval);
+                    document.getElementById('paymentStatus').innerHTML = `
+                        <div class="error">❌</div>
+                        <div class="status" style="color: #f44336;">Payment failed or timeout</div>
+                        <button onclick="window.location.href='/hotspot-login'" style="margin-top: 20px; padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer;">Try Again</button>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error checking status:', error);
+            }
+        }, 3000);
+    </script>
+</body>
+</html>

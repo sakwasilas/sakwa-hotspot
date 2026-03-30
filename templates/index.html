@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Silas WiFi - High Speed Internet</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 50px;
+            padding: 40px 20px;
+        }
+        
+        .header h1 {
+            font-size: 3rem;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+        
+        .device-info {
+            background: rgba(255,255,255,0.2);
+            border-radius: 10px;
+            padding: 10px;
+            margin-top: 20px;
+            font-size: 0.9rem;
+            backdrop-filter: blur(5px);
+        }
+        
+        .packages-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+        
+        .package-card {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            text-align: center;
+            transition: transform 0.3s, box-shadow 0.3s;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .package-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+        
+        .package-card.popular {
+            border: 2px solid #ff6b6b;
+        }
+        
+        .popular-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #ff6b6b;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+        
+        .package-name {
+            font-size: 1.8rem;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #333;
+        }
+        
+        .price {
+            font-size: 3rem;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        
+        .price small {
+            font-size: 1rem;
+            color: #999;
+        }
+        
+        .duration {
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 1rem;
+        }
+        
+        .description {
+            color: #888;
+            margin-bottom: 25px;
+            line-height: 1.5;
+        }
+        
+        .select-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: transform 0.2s;
+            width: 100%;
+        }
+        
+        .select-btn:hover {
+            transform: scale(1.05);
+        }
+        
+        .footer {
+            text-align: center;
+            color: white;
+            margin-top: 50px;
+            padding: 20px;
+            opacity: 0.8;
+        }
+        
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(5px);
+        }
+        
+        .modal-content {
+            background: white;
+            margin: 15% auto;
+            padding: 30px;
+            border-radius: 20px;
+            max-width: 400px;
+            position: relative;
+            animation: slideDown 0.3s ease;
+        }
+        
+        @keyframes slideDown {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        
+        .modal-header {
+            margin-bottom: 20px;
+        }
+        
+        .modal-header h2 {
+            color: #333;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .submit-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 10px;
+            width: 100%;
+            font-size: 1rem;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        .close {
+            position: absolute;
+            right: 20px;
+            top: 20px;
+            font-size: 28px;
+            cursor: pointer;
+            color: #999;
+        }
+        
+        .close:hover {
+            color: #333;
+        }
+        
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .packages-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Silas WiFi</h1>
+            <p>Fast, reliable, and affordable internet for everyone</p>
+            <div id="deviceInfo" class="device-info" style="display: none;">
+                <span>📱 Device: <span id="deviceMac"></span></span>
+                <span style="margin-left: 15px;">🌐 IP: <span id="deviceIp"></span></span>
+            </div>
+        </div>
+        
+        <div class="packages-grid">
+            {% for package_id, package in packages.items() %}
+            <div class="package-card {% if package_id == '3hours' %}popular{% endif %}" onclick="selectPackage('{{ package_id }}')">
+                {% if package_id == '3hours' %}
+                <div class="popular-badge">🔥 Most Popular</div>
+                {% endif %}
+                <div class="package-name">{{ package.name }}</div>
+                <div class="price">KSh {{ package.price }}<small></small></div>
+                <div class="duration">⏱️ {{ package.duration }} hour(s)</div>
+                <div class="description">{{ package.description }}</div>
+                <button class="select-btn">Choose Plan</button>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <div class="footer">
+            <p>✨ Secure payments via M-Pesa | 24/7 Support | No contracts</p>
+        </div>
+    </div>
+    
+    <!-- Phone Number Modal -->
+    <div id="phoneModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <div class="modal-header">
+                <h2>Enter Phone Number</h2>
+            </div>
+            <form id="paymentForm">
+                <div class="form-group">
+                    <label>📱 M-Pesa Number</label>
+                    <input type="tel" id="phoneNumber" placeholder="07XXXXXXXX" required pattern="07[0-9]{8}" title="Enter a valid Safaricom number">
+                    <small style="color: #666; display: block; margin-top: 5px;">You'll receive a payment prompt on this number</small>
+                </div>
+                <input type="hidden" id="selectedPackage">
+                <button type="submit" class="submit-btn">💳 Pay with M-Pesa</button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Processing Modal -->
+    <div id="processingModal" class="modal">
+        <div class="modal-content" style="text-align: center;">
+            <div class="modal-header">
+                <h2>Processing Payment</h2>
+            </div>
+            <div style="padding: 20px;">
+                <div class="spinner" style="border: 4px solid #f3f3f3; border-top: 4px solid #667eea; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin: 0 auto 20px;"></div>
+                <p>Please check your phone and enter your M-Pesa PIN to complete the payment.</p>
+                <p id="paymentStatus" style="color: #666; font-size: 0.9rem; margin-top: 15px;">Waiting for payment confirmation...</p>
+            </div>
+        </div>
+    </div>
+    
+    <style>
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+    
+    <script>
+        let selectedPackage = '';
+        let checkInterval = null;
+        
+        // Get MAC from URL if present
+        const urlParams = new URLSearchParams(window.location.search);
+        const macAddress = urlParams.get('mac') || '';
+        const ipAddress = urlParams.get('ip') || '';
+        
+        // Show device info if MAC is available
+        if (macAddress) {
+            document.getElementById('deviceInfo').style.display = 'block';
+            document.getElementById('deviceMac').textContent = macAddress;
+            document.getElementById('deviceIp').textContent = ipAddress || 'Unknown';
+            console.log('Device MAC:', macAddress, 'IP:', ipAddress);
+        }
+        
+        function selectPackage(packageId) {
+            selectedPackage = packageId;
+            document.getElementById('selectedPackage').value = packageId;
+            document.getElementById('phoneModal').style.display = 'block';
+        }
+        
+        function closeModal() {
+            document.getElementById('phoneModal').style.display = 'none';
+            if (checkInterval) {
+                clearInterval(checkInterval);
+            }
+        }
+        
+        document.getElementById('paymentForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const phoneNumber = document.getElementById('phoneNumber').value;
+            const packageId = document.getElementById('selectedPackage').value;
+            
+            // Validate phone number
+            if (!phoneNumber || phoneNumber.length < 10) {
+                alert('Please enter a valid phone number');
+                return;
+            }
+            
+            // Close phone modal
+            closeModal();
+            
+            // Show processing modal
+            document.getElementById('processingModal').style.display = 'block';
+            
+            // Submit payment request with MAC
+            const formData = new FormData();
+            formData.append('package', packageId);
+            formData.append('phone_number', phoneNumber);
+            formData.append('mac_address', macAddress);
+            formData.append('ip_address', ipAddress);
+            
+            try {
+                const response = await fetch('/select-package', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    // Simulate payment (temporary - will replace with actual M-Pesa check)
+                    setTimeout(() => {
+                        simulatePayment();
+                    }, 2000);
+                } else {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to initiate payment');
+                }
+            } catch (error) {
+                document.getElementById('processingModal').style.display = 'none';
+                alert(error.message);
+            }
+        });
+        
+        async function simulatePayment() {
+            try {
+                const response = await fetch('/simulate-payment', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('paymentStatus').innerHTML = '✅ Payment successful! Redirecting...';
+                    setTimeout(() => {
+                        window.location.href = '/success';
+                    }, 2000);
+                } else {
+                    throw new Error(data.error || 'Payment failed');
+                }
+            } catch (error) {
+                document.getElementById('paymentStatus').innerHTML = '❌ ' + error.message;
+                setTimeout(() => {
+                    document.getElementById('processingModal').style.display = 'none';
+                }, 3000);
+            }
+        }
+        
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            if (event.target == document.getElementById('phoneModal')) {
+                closeModal();
+            }
+            if (event.target == document.getElementById('processingModal')) {
+                document.getElementById('processingModal').style.display = 'none';
+                if (checkInterval) clearInterval(checkInterval);
+            }
+        }
+        
+        // Phone number formatting
+        document.getElementById('phoneNumber').addEventListener('input', function(e) {
+            let value = e.target.value.replace(/\D/g, '');
+            if (value.startsWith('0') && value.length <= 10) {
+                e.target.value = value;
+            } else if (value.startsWith('254') && value.length <= 12) {
+                e.target.value = value;
+            }
+        });
+    </script>
+</body>
+</html>

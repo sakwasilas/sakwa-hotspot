@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Already Connected - Silas WiFi</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .active-container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 450px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        
+        .wifi-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .info-box {
+            background: #e8f5e9;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        
+        .remaining-time {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #4caf50;
+            margin: 15px 0;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 10px;
+            font-size: 1rem;
+            cursor: pointer;
+            margin: 10px;
+            transition: transform 0.2s;
+        }
+        
+        .btn:hover {
+            transform: scale(1.05);
+        }
+        
+        .btn-secondary {
+            background: #ff6b6b;
+        }
+        
+        .timer {
+            font-size: 2rem;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="active-container">
+        <div class="wifi-icon">📶✅</div>
+        <h1>You're Already Connected!</h1>
+        <p>You have an active internet session</p>
+        
+        <div class="info-box">
+            <strong>Package:</strong> {{ session.package }}<br>
+            <strong>Started:</strong> {{ session.start_time.strftime('%Y-%m-%d %H:%M') }}<br>
+            <strong>Expires:</strong> {{ session.end_time.strftime('%Y-%m-%d %H:%M') }}
+        </div>
+        
+        <div class="remaining-time">
+            Time Remaining:
+        </div>
+        <div class="timer" id="timer">--:--:--</div>
+        
+        <button class="btn" onclick="window.location.href='http://www.google.com'">Continue Browsing</button>
+        <button class="btn btn-secondary" onclick="window.location.href='/logout?mac={{ session.mac_address }}'">Disconnect</button>
+    </div>
+    
+    <script>
+        let remainingSeconds = {{ remaining_hours * 3600 }};
+        
+        function updateTimer() {
+            if (remainingSeconds <= 0) {
+                document.getElementById('timer').textContent = 'Expired';
+                return;
+            }
+            
+            const hours = Math.floor(remainingSeconds / 3600);
+            const minutes = Math.floor((remainingSeconds % 3600) / 60);
+            const seconds = Math.floor(remainingSeconds % 60);
+            
+            document.getElementById('timer').textContent = 
+                `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            
+            remainingSeconds--;
+        }
+        
+        updateTimer();
+        setInterval(updateTimer, 1000);
+    </script>
+</body>
+</html>
